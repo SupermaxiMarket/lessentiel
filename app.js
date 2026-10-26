@@ -175,7 +175,9 @@ function dayEvents(date) {
 function renderNextEvent() {
   const now = new Date();
   const hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  const upcoming = dayEvents(todayStr()).filter((e) => !e.done && e.time > hm);
+  const local = dayEvents(todayStr()).filter((e) => !e.done && e.time > hm).map((e) => ({ time: e.time, label: e.label }));
+  const gcal = gcalCached().filter((e) => !e.allDay && e.time && e.time > hm).map((e) => ({ time: e.time, label: e.label }));
+  const upcoming = local.concat(gcal).sort((a, b) => a.time.localeCompare(b.time));
   const box = $('nextEventBox');
   if (upcoming.length) {
     box.innerHTML = 'Prochain : <b>' + esc(upcoming[0].time) + '</b> — ' + esc(upcoming[0].label);
@@ -208,6 +210,20 @@ function renderEvents() {
     });
     list.appendChild(li);
   });
+
+  // Événements Google Agenda (lecture seule)
+  gcalCached().forEach((g) => {
+    const li = document.createElement('li');
+    li.className = 'gcal';
+    li.title = 'Google Agenda';
+    li.innerHTML =
+      '<span class="tag">' + (g.allDay ? 'jour' : esc(g.time)) + '</span>' +
+      '<span class="lab">' + esc(g.label) + '</span>' +
+      '<span class="gcal-badge">G</span>';
+    if (g.link) li.addEventListener('click', () => window.open(g.link, '_blank'));
+    list.appendChild(li);
+  });
+
   $('planHint').textContent = evs.length
     ? evs.filter((x) => !x.done).length + ' restant(s) — cochez pour ranger.'
     : 'Ajoutez ce qui compte vraiment aujourd’hui. Le reste peut attendre.';
@@ -427,11 +443,123 @@ function renderWeather() {
     Math.round(w.cur) + '°C ' + w.label + ' · ' + Math.round(w.min) + '°/' + Math.round(w.max) + '°';
 }
 
+/* ---------- Google Agenda (lecture seule) ---------- */
+
+const GOOGLE_CLIENT_ID = 'PASTE_CLIENT_ID_HERE';
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+const GOOGLE_KEY = 'lessentiel.google';
+const GCAL_CACHE_KEY = 'lessentiel.gcal';
+
+function googleConfigured() {
+  return GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.indexOf('PASTE') !== 0;
+}
+
+function gload() {
+  try { return JSON.parse(localStorage.getItem(GOOGLE_KEY)); } catch (e) { return null; }
+}
+function gsave(t) { localStorage.setItem(GOOGLE_KEY, JSON.stringify(t)); }
+function gclear() { localStorage.removeItem(GOOGLE_KEY); localStorage.removeItem(GCAL_CACHE_KEY); }
+function gcalCached() {
+  try { const c = JSON.parse(localStorage.getItem(GCAL_CACHE_KEY)); return (c && c.events) || []; }
+  catch (e) { return []; }
+}
+function googleConnected() {
+  const t = gload();
+  return !!(t && t.token && t.exp && t.exp > Date.now() + 30000);
+}
+
+let tokenClient = null;
+
+function ensureGoogleSdk(cb) {
+  if (window.google && google.accounts && google.accounts.oauth2) { cb(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true;
+  s.onload = cb;
+  s.onerror = () => toast('Impossible de charger Google.');
+  document.head.appendChild(s);
+}
+
+function initTokenClient() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: GCAL_SCOPE,
+    callback: (resp) => {
+      if (resp.error !== undefined) { toast('Connexion Google annulée.'); return; }
+      gsave({ token: resp.access_token, exp: Date.now() + (resp.expires_in || 3600) * 1000 });
+      toast('Google Agenda connecté.');
+      fetchGoogleEvents();
+    },
+  });
+}
+
+function connectGoogle() {
+  if (!googleConfigured()) { toast('Clé Google non configurée.'); return; }
+  ensureGoogleSdk(() => {
+    if (!tokenClient) initTokenClient();
+    tokenClient.requestAccessToken();
+  });
+}
+
+function disconnectGoogle() {
+  if (!confirm('Déconnecter Google Agenda ?')) return;
+  gclear();
+  renderGcal(); renderEvents(); renderNextEvent();
+  toast('Google Agenda déconnecté.');
+}
+
+function mapGcalEvent(ev) {
+  if (ev.status === 'cancelled') return null;
+  if (ev.start.dateTime) {
+    const d = new Date(ev.start.dateTime);
+    return { id: ev.id, time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), allDay: false, label: ev.summary || '(sans titre)', link: ev.htmlLink || '' };
+  }
+  if (ev.start.date) {
+    return { id: ev.id, time: '', allDay: true, label: ev.summary || '(sans titre)', link: ev.htmlLink || '' };
+  }
+  return null;
+}
+
+async function fetchGoogleEvents() {
+  const t = gload();
+  if (!t || !t.token) return;
+  $('gcalStatus').textContent = 'synchronisation…';
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const end = addDays(start, 1);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Zurich';
+  const url = 'https://www.googleapis.com/calendar/v3/calendars/primary/events' +
+    '?timeMin=' + encodeURIComponent(start.toISOString()) +
+    '&timeMax=' + encodeURIComponent(end.toISOString()) +
+    '&singleEvents=true&orderBy=startTime&timeZone=' + encodeURIComponent(tz);
+  try {
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + t.token } });
+    if (res.status === 401) { gclear(); renderGcal(); renderEvents(); toast('Session Google expirée, reconnecte-toi.'); return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const events = (data.items || []).map(mapGcalEvent).filter(Boolean);
+    localStorage.setItem(GCAL_CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), events }));
+    renderGcal(); renderEvents(); renderNextEvent();
+  } catch (e) {
+    $('gcalStatus').textContent = 'échec';
+    toast('Synchronisation Google impossible.');
+  }
+}
+
+function renderGcal() {
+  const toggle = $('gcalToggle');
+  const status = $('gcalStatus');
+  const connected = googleConnected();
+  toggle.textContent = connected ? '🔗 Google Agenda · déconnecter' : '🔗 Google Agenda';
+  status.textContent = connected ? 'connecté' : (googleConfigured() ? 'non connecté' : 'clé requise');
+  status.className = 'gcal-status' + (connected ? ' on' : '');
+}
+
 /* ---------- Rendu global ---------- */
 
 function render() {
   renderProfiles();
   renderEvents();
+  renderGcal();
   renderMeals();
   renderChores();
   renderBudget();
@@ -511,6 +639,15 @@ function bind() {
   // Météo
   $('weatherChip').addEventListener('click', () => fetchWeather(true));
 
+  // Google Agenda
+  $('gcalToggle').addEventListener('click', () => {
+    if (googleConnected()) disconnectGoogle();
+    else connectGoogle();
+  });
+  $('gcalStatus').addEventListener('click', () => {
+    if (googleConnected()) fetchGoogleEvents();
+  });
+
   // Export / import / reset
   $('exportBtn').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -568,6 +705,7 @@ function start() {
   render();
   setInterval(refreshClock, 30000);
   fetchWeather(false);
+  if (googleConnected()) fetchGoogleEvents();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
