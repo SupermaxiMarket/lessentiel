@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>L'Essentiel — votre quotidien en une page</title>
+<meta name="description" content="Agenda, repas, tâches, budget, forme : tout ce qui compte aujourd'hui, sur un seul écran. Gratuit, privé, hors ligne.">
+<meta name="theme-color" content="#0b0d10">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="L'Essentiel">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌤️</text></svg>">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span>L'Essentiel</span>
+    </div>
+    <div class="weather" id="weatherChip" title="Météo — toucher pour actualiser">
+      <span id="weatherIcon">···</span>
+      <span id="weatherText">···</span>
+    </div>
+  </div>
+  <div class="hero">
+    <div class="greet" id="greet">Bonjour</div>
+    <div class="clockline">
+      <span class="clock" id="clock">--:--</span>
+      <span class="dateline" id="dateLine"></span>
+    </div>
+    <div class="next" id="nextEventBox">…</div>
+  </div>
+</header>
+
+<main class="grid">
+
+  <!-- Aujourd'hui -->
+  <section class="card" id="card-plan">
+    <h2><span class="emo">🗓️</span> Aujourd'hui</h2>
+    <form id="eventForm" autocomplete="off">
+      <div class="row">
+        <input type="time" id="evTime" required aria-label="Heure">
+        <input type="text" id="evLabel" placeholder="Quoi ? (rendez-vous, école, paperasse…)" maxlength="80" required>
+        <button type="submit" class="btn">+</button>
+      </div>
+    </form>
+    <ul class="list" id="eventsList"></ul>
+    <p class="hint" id="planHint"></p>
+  </section>
+
+  <!-- Repas -->
+  <section class="card" id="card-meals">
+    <h2><span class="emo">🍽️</span> Repas du jour</h2>
+    <label class="meal-row">
+      <span>Midi</span>
+      <input type="text" id="mealMidi" placeholder="À table, qu'est-ce qu'on mange ?" maxlength="60">
+    </label>
+    <label class="meal-row">
+      <span>Soir</span>
+      <input type="text" id="mealSoir" placeholder="Le soir…" maxlength="60">
+    </label>
+    <label class="meal-row dim">
+      <span>Demain</span>
+      <input type="text" id="mealTomorrow" placeholder="Vu d'avance" maxlength="60">
+    </label>
+    <button class="btn ghost" id="mealInspire" type="button">✨ Une idée de repas</button>
+  </section>
+
+  <!-- Tâches -->
+  <section class="card" id="card-chores">
+    <h2><span class="emo">🧹</span> Tâches de la maison</h2>
+    <div id="choreDay" class="chore-day"></div>
+    <ul class="list" id="choresList"></ul>
+    <form id="choreForm" autocomplete="off">
+      <div class="row">
+        <input type="text" id="choreLabel" placeholder="Nouvelle tâche (poubelles, vaisselle…)" maxlength="60" required>
+        <button type="submit" class="btn">+</button>
+      </div>
+    </form>
+    <p class="hint">La personne responsable change automatiquement chaque jour. Cochez quand c'est fait.</p>
+  </section>
+
+  <!-- Budget -->
+  <section class="card" id="card-budget">
+    <h2><span class="emo">💶</span> Budget de la semaine</h2>
+    <div class="budget-top">
+      <div class="budget-num">
+        <span id="budgetWeek">0.–</span>
+        <span class="muted">/ <input type="number" id="budgetLimit" min="0" step="10" aria-label="Limite hebdomadaire"> CHF</span>
+      </div>
+      <span class="muted" id="budgetToday">Aujourd'hui : 0.–</span>
+    </div>
+    <div class="bar"><div class="bar-fill" id="budgetBar"></div></div>
+    <form id="budgetForm" autocomplete="off">
+      <div class="row">
+        <input type="text" id="expLabel" placeholder="Dépense (courses, essence…)" maxlength="40" required>
+        <input type="text" id="expAmount" inputmode="decimal" placeholder="0.00" aria-label="Montant" required>
+        <button type="submit" class="btn">+</button>
+      </div>
+    </form>
+    <ul class="list compact" id="expensesList"></ul>
+  </section>
+
+  <!-- Forme -->
+  <section class="card" id="card-health">
+    <h2><span class="emo">🌿</span> Forme</h2>
+    <div class="health-grid">
+      <div class="health-cell">
+        <span class="muted">Eau</span>
+        <div class="counter">
+          <button class="btn ghost round" id="waterMinus" type="button">−</button>
+          <span id="waterCount">0</span>
+          <button class="btn ghost round" id="waterPlus" type="button">+</button>
+        </div>
+        <span class="tiny">verres aujourd'hui</span>
+      </div>
+      <div class="health-cell">
+        <span class="muted">Sommeil</span>
+        <div class="counter">
+          <button class="btn ghost round" id="sleepMinus" type="button">−</button>
+          <span id="sleepCount">0</span>
+          <button class="btn ghost round" id="sleepPlus" type="button">+</button>
+        </div>
+        <span class="tiny">heures cette nuit</span>
+      </div>
+    </div>
+    <p class="hint" id="sleepAvg"></p>
+  </section>
+
+  <!-- Famille -->
+  <section class="card" id="card-family">
+    <h2><span class="emo">👨‍👩‍👧</span> La maison</h2>
+    <div class="chips" id="profilesChips"></div>
+    <form id="profileForm" autocomplete="off">
+      <div class="row">
+        <input type="text" id="profName" placeholder="Prénom (enfant, partenaire…)" maxlength="20" required>
+        <button type="submit" class="btn">+</button>
+      </div>
+    </form>
+    <p class="hint">Chaque personne a ses verres d'eau, son sommeil et ses tâches. Un écran, toute la maison.</p>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-buttons">
+    <button class="btn ghost" id="exportBtn" type="button">Exporter mes données</button>
+    <button class="btn ghost" id="importBtn" type="button">Importer</button>
+    <input type="file" id="importFile" accept="application/json" hidden>
+    <button class="btn ghost danger" id="resetBtn" type="button">Tout effacer</button>
+  </div>
+  <p class="foot-note">
+    Vos données restent dans cet appareil. Aucun compte, aucun serveur, aucun pistage.<br>
+    Fonctionne hors ligne. Ajoutez-la à l'écran d'accueil de votre téléphone : elle se comporte comme une vraie app.
+  </p>
+</footer>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
