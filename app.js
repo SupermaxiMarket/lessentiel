@@ -445,7 +445,7 @@ function renderWeather() {
 
 /* ---------- Google Agenda (lecture seule) ---------- */
 
-const GOOGLE_CLIENT_ID = 'PASTE_CLIENT_ID_HERE';
+const GOOGLE_CLIENT_ID = '212605429193-0biqqoj2gsgjs1olra98k3cqgqti1tec.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 const GOOGLE_KEY = 'lessentiel.google';
 const GCAL_CACHE_KEY = 'lessentiel.gcal';
